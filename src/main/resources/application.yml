@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: ecommerce-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5433/ecommerce
+    username: postgres
+    password: password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8081
+
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-please-change-this-to-a-long-random-string-1234567890}
+  expiration: 86400000
