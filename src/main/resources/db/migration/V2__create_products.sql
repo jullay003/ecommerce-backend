@@ -1,0 +1,11 @@
+CREATE TABLE products (
+   id BIGSERIAL PRIMARY KEY,
+   name VARCHAR(100) NOT NULL,
+   description VARCHAR(2000),
+   price DECIMAL(10, 2) NOT NULL,
+   stock_quantity INT NOT NULL,
+   image_url VARCHAR(500),
+   category VARCHAR(50),
+   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
