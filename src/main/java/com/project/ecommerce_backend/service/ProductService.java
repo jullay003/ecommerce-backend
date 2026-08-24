@@ -5,6 +5,9 @@ import com.project.ecommerce_backend.dto.ProductRequest;
 import com.project.ecommerce_backend.dto.ProductResponse;
 import com.project.ecommerce_backend.entity.Product;
 import com.project.ecommerce_backend.repository.ProductRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -13,19 +16,22 @@ import java.util.stream.Collectors;
 
 @Service
 public class ProductService {
-    private ProductRepository productRepository;
+    private final ProductRepository productRepository;
 
     public ProductService(ProductRepository productRepository) {
         this.productRepository = productRepository;
     }
 
+    @Cacheable(value = "allProducts")
     @Transactional(readOnly = true)
     public List<ProductResponse> getAllProducts() {
+        System.out.println(">>> getAllProducts() is EXECUTING (cache miss or no cache)");
         return productRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "product", key = "#id")
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
@@ -33,6 +39,7 @@ public class ProductService {
         return mapToResponse(product);
     }
 
+    @Caching(evict = {@CacheEvict(value = "allProducts", allEntries = true)})
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
         Product product = new Product();
@@ -46,6 +53,10 @@ public class ProductService {
         return mapToResponse(saved);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "product", key = "#id"),
+            @CacheEvict(value = "allProducts", allEntries = true)
+    })
     @Transactional
     public ProductResponse updatedProduct(Long id, ProductRequest request) {
         Product product = productRepository.findById(id)
@@ -60,6 +71,10 @@ public class ProductService {
         return mapToResponse(updated);
     }
 
+    @Caching(evict = {
+            @CacheEvict(value = "product", key = "#id"),
+            @CacheEvict(value = "allProducts", allEntries = true)
+    })
     @Transactional
     public void deleteProduct(Long id) {
         if(!productRepository.existsById(id)) {

@@ -10,6 +10,7 @@ import com.project.ecommerce_backend.repository.RoleRepository;
 import com.project.ecommerce_backend.repository.UserRepository;
 import com.project.ecommerce_backend.util.JwtUtil;
 import jakarta.transaction.Transactional;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -37,6 +38,14 @@ public class AuthService {
         this.authenticationManager = authenticationManager;
         this.jwtUtil = jwtUtil;
     }
+
+    @Cacheable(value = "testCache", key = "'hello'")
+    public String testCache() {
+        System.out.println("Inside testCache method");
+        return "Hello from cache";
+    }
+
+
 
     @Transactional
     public User registerUser(SignupRequest request) {
