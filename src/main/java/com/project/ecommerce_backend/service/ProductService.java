@@ -8,8 +8,10 @@ import com.project.ecommerce_backend.repository.ProductRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -17,9 +19,11 @@ import java.util.stream.Collectors;
 @Service
 public class ProductService {
     private final ProductRepository productRepository;
+    private final S3Service s3Service;
 
-    public ProductService(ProductRepository productRepository) {
+    public ProductService(ProductRepository productRepository, S3Service s3Service) {
         this.productRepository = productRepository;
+        this.s3Service = s3Service;
     }
 
     @Cacheable(value = "allProducts")
@@ -39,9 +43,10 @@ public class ProductService {
         return mapToResponse(product);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @Caching(evict = {@CacheEvict(value = "allProducts", allEntries = true)})
     @Transactional
-    public ProductResponse createProduct(ProductRequest request) {
+    public ProductResponse createProduct(ProductRequest request, MultipartFile image) {
         Product product = new Product();
         product.setName(request.getName());
         product.setDescription(request.getDescription());
@@ -49,27 +54,49 @@ public class ProductService {
         product.setStockQuantity(request.getStockQuantity());
         product.setImageUrl(request.getImageUrl());
         product.setCategory(request.getCategory());
+
+        if(image != null && !image.isEmpty()) {
+            String  imageUrl = s3Service.uploadFile(image);
+            product.setImageUrl(imageUrl);
+        }
+
         Product saved = productRepository.save(product);
         return mapToResponse(saved);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @Caching(evict = {
             @CacheEvict(value = "product", key = "#id"),
             @CacheEvict(value = "allProducts", allEntries = true)
     })
     @Transactional
-    public ProductResponse updatedProduct(Long id, ProductRequest request) {
+    public ProductResponse updatedProduct(Long id,
+                                          ProductRequest request,
+                                          MultipartFile image) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+
+        //del old img if new one id uploaded:
+        if(image != null && !image.isEmpty() && product.getImageUrl() != null) {
+            s3Service.deleteFile(product.getImageUrl());
+        }
+
         product.setName(request.getName());
         product.setDescription(request.getDescription());
         product.setPrice(request.getPrice());
         product.setStockQuantity(request.getStockQuantity());
         product.setImageUrl(request.getImageUrl());
         product.setCategory(request.getCategory());
+
+        if(image != null && !image.isEmpty()) {
+            String imageUrl = s3Service.uploadFile(image);
+            product.setImageUrl(imageUrl);
+        }
+
         Product updated = productRepository.save(product);
         return mapToResponse(updated);
     }
+
 
     @Caching(evict = {
             @CacheEvict(value = "product", key = "#id"),
@@ -77,10 +104,13 @@ public class ProductService {
     })
     @Transactional
     public void deleteProduct(Long id) {
-        if(!productRepository.existsById(id)) {
-            throw new RuntimeException("Product not found with id: " + id);
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+
+        if(product.getImageUrl() != null) {
+            s3Service.deleteFile(product.getImageUrl());
         }
-        productRepository.deleteById(id);
+        productRepository.delete(product);
     }
 
     private ProductResponse mapToResponse(Product product) {

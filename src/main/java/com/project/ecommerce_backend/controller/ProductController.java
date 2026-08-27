@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -32,18 +33,22 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProductById(id));
     }
 
-    @PostMapping
+    @PostMapping(consumes = {"multipart/form-data"})
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody
-                                                         ProductRequest request) {
-        ProductResponse created = productService.createProduct(request);
+    public ResponseEntity<ProductResponse> createProduct(
+            @Valid @RequestPart("product") ProductRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        ProductResponse created = productService.createProduct(request, image);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping(value = "/{id}", consumes = {"multipart/form-data"})
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ProductResponse> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductRequest request) {
-        ProductResponse updated = productService.updatedProduct(id, request);
+    public ResponseEntity<ProductResponse> updateProduct(
+            @PathVariable Long id,
+            @Valid @RequestPart("product") ProductRequest request,
+            @RequestPart(value = "image", required = false) MultipartFile image) {
+        ProductResponse updated = productService.updatedProduct(id, request, image);
         return ResponseEntity.ok(updated);
     }
 
