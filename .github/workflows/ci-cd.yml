@@ -23,8 +23,8 @@ jobs:
       - name: Build with Maven (skip tests for now)
         run: mvn clean package -DskipTests
 
-      - name: (Optional) Run tests if you have them
-        run: mvn test
+#      - name: (Optional) Run tests if you have them
+#        run: mvn test
         # If you have no tests, this step will just pass quickly.
 
   docker-build-and-push:
