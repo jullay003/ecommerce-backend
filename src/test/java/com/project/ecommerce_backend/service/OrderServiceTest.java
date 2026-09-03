@@ -3,6 +3,7 @@ package com.project.ecommerce_backend.service;
 import com.project.ecommerce_backend.dto.*;
 import com.project.ecommerce_backend.entity.*;
 import com.project.ecommerce_backend.repository.OrderRepository;
+import com.project.ecommerce_backend.repository.PaymentRepository;
 import com.project.ecommerce_backend.repository.ProductRepository;
 import com.project.ecommerce_backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,12 @@ class OrderServiceTest {
 
     @Mock
     private UserRepository userRepository;   // added
+
+    @Mock
+    private PaymentRepository paymentRepository;
+
+    @Mock
+    private PaymentGateway paymentGateway;
 
     @InjectMocks
     private OrderService orderService;
@@ -158,5 +165,66 @@ class OrderServiceTest {
         assertThat(responses).hasSize(1);
         assertThat(responses.get(0).getItems()).hasSize(1);
         verify(orderRepository, times(1)).findByUserId(userId);
+    }
+
+    @Test
+    void processPayment_WhenOrderExistAndGatewaySuccess_ShouldUpdateOrderAndCreatePayment() {
+        //Arrange
+
+        Long userId = 1L;
+        Long orderId = 100L;
+        User user = new User();
+        user.setId(userId);
+
+        Order order = new Order();
+        order.setId(orderId);
+        order.setUser(user);
+        order.setTotalAmount(new BigDecimal("199.98"));
+        order.setStatus(OrderStatus.PENDING);
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(paymentGateway.charge(eq(orderId), any(BigDecimal.class)))
+                .thenReturn(new PaymentResult(true, "TXN-123"));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenReturn(order);
+
+        //Act
+        OrderResponse response = orderService.processPayment(userId, orderId);
+
+        //Assert
+        assertThat(response.getStatus()).isEqualTo(OrderStatus.PAID);
+        verify(paymentRepository, times(1)).save(any(Payment.class));
+        verify(orderRepository, times(1)).save(order);
+
+
+    }
+
+    @Test
+    void processPayment_WhenGatewayFails_ShouldUpdateOrderToFailed() {
+        //Arrange
+
+        Long userId = 1L;
+        Long orderId = 100L;
+        User user = new User();
+        user.setId(userId);
+
+        Order order = new Order();
+        order.setId(orderId);
+        order.setUser(user);
+        order.setTotalAmount(new BigDecimal("199.98"));
+        order.setStatus(OrderStatus.PENDING);
+
+        when(orderRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(paymentGateway.charge(eq(orderId), any(BigDecimal.class)))
+                .thenReturn(new PaymentResult(false, null));
+
+
+      //Act & Assert
+        assertThatThrownBy(() -> orderService.processPayment(userId, orderId))
+                .isInstanceOf(RuntimeException.class)
+                        .hasMessageContaining("Payment failed");
+        verify(paymentRepository, never()).save(any(Payment.class));
+        verify(orderRepository, never()).save(any(Order.class));
+
     }
 }

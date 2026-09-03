@@ -3,6 +3,7 @@ package com.project.ecommerce_backend.service;
 import com.project.ecommerce_backend.dto.*;
 import com.project.ecommerce_backend.entity.*;
 import com.project.ecommerce_backend.repository.OrderRepository;
+import com.project.ecommerce_backend.repository.PaymentRepository;
 import com.project.ecommerce_backend.repository.ProductRepository;
 import com.project.ecommerce_backend.repository.UserRepository;
 import org.springframework.stereotype.Service;
@@ -19,15 +20,21 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    private final PaymentRepository paymentRepository;
+    private final PaymentGateway paymentGateway;
 
     public OrderService(CartService cartService,
                         ProductRepository productRepository,
                         OrderRepository orderRepository,
-                        UserRepository userRepository) {
+                        UserRepository userRepository,
+                        PaymentRepository paymentRepository,
+                        PaymentGateway paymentGateway) {
         this.cartService = cartService;
         this.productRepository = productRepository;
         this.orderRepository = orderRepository;
         this.userRepository = userRepository;
+        this.paymentRepository = paymentRepository;
+        this.paymentGateway = paymentGateway;
     }
 
     @Transactional
@@ -95,6 +102,39 @@ public class OrderService {
         }
         return responses;
     }
+
+    @Transactional
+    public OrderResponse processPayment(Long userId, Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found"));
+
+        if(!order.getUser().getId().equals(userId)) {
+            throw new RuntimeException("Order does not belong to user");
+        }
+        if(order.getStatus() != OrderStatus.PENDING) {
+            throw new RuntimeException("Order is not in PENDING state");
+        }
+
+        PaymentResult result = paymentGateway.charge(orderId, order.getTotalAmount());
+
+        if(!result.isSuccess()) {
+            throw new RuntimeException("Payment failed");
+        }
+
+        //succeeded
+        Payment payment = new Payment();
+        payment.setOrder(order);
+        payment.setAmount(order.getTotalAmount());
+        payment.setStatus(PaymentStatus.PENDING);
+        payment.setTransactionId(result.getTransactionId());
+        paymentRepository.save(payment);
+
+        order.setStatus(OrderStatus.PAID);
+        Order savedOrder = orderRepository.save(order);
+
+        return mapToResponse(savedOrder);
+    }
+
 
     private OrderResponse mapToResponse(Order order) {
         List<OrderItemResponse> itemResponses = new ArrayList<>();
